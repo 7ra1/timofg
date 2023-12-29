@@ -5,7 +5,7 @@
     "whatsapp bot",
     "nodejs"
   ],
-  "repository": "",
+  "repository": "https://github.com/7thRA-ONE/zfdd",
     "buildpacks": [
     {
       "url": "heroku/nodejs"
