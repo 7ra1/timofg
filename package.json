@@ -16,7 +16,7 @@
     "test2": "nodemon index.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "RAONE",
   "license": "ISC",
   "dependencies": {
     "@types/node": "^18.0.6",
@@ -24,9 +24,10 @@
     "body-parser": "^1.20.2",
     "caliph-api": "^1.0.0",
     "express": "^4.18.2",
+    "file-type": "^18.7.0",
     "fluent-ffmpeg": "^2.1.2",
     "form-data": "^4.0.0",
-     "formdata-node": "^6.0.3",
+    "formdata-node": "^6.0.3",
     "node-fetch": "^3.2.6",
     "pm2": "^5.3.0",
     "sharp": "^0.32.0"
