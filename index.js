@@ -22,7 +22,7 @@ import {
        }from "./convert.js"
 
 const app = express();
-const port = 3000; // You can set any port you prefer
+const port = process.env.PORT || process.env.SERVER_PORT || 27257
 
 // Middleware to parse JSON
 app.use(express.json());
