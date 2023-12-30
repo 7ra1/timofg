@@ -10,15 +10,19 @@ import axios from 'axios';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import clph from 'caliph-api';
-import FormData from 'form-data';
+//import FormData from 'form-data';
 const __filename = fileURLToPath(import.meta.url);
+import fetch from 'node-fetch'
+import { FormData, Blob } from 'formdata-node'
+import { fileTypeFromBuffer } from 'file-type'
+
 const __dirname = dirname(__filename);
 import {
   convertImageToVideo
        }from "./convert.js"
 
 const app = express();
-const port = 3000; // You can set any port you prefer
+const port = process.env.PORT || process.env.SERVER_PORT || 27257
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -97,48 +101,48 @@ function calculateAutoAspectRatio(gridCols, gridRows) {
 
 // Use 'export' for the main function
 async function createCollage(imageUrls, outputCollagePath) {
-    let maxImageWidth = 0;
-    let maxImageHeight = 0;
-    const margin = 10; // Set your desired margin value
+  let maxImageWidth = 0;
+  let maxImageHeight = 0;
+  const margin = 10; // Set your desired margin value
 
-    const totalImages = imageUrls.length;
+  const totalImages = imageUrls.length;
 
-    const imagesMetadata = await Promise.all(imageUrls.map(downloadAndGetDimensions));
+  const imagesMetadata = await Promise.all(imageUrls.map(downloadAndGetDimensions));
 
-    imagesMetadata.forEach(({ width, height }) => {
-        maxImageWidth = Math.max(maxImageWidth, width);
-        maxImageHeight = Math.max(maxImageHeight, height);
-    });
+  imagesMetadata.forEach(({ width, height }) => {
+      maxImageWidth = Math.max(maxImageWidth, width);
+      maxImageHeight = Math.max(maxImageHeight, height);
+  });
 
-    // Calculate grid dimensions
-    const gridCols = 3;
-    const gridRows = 4;
+  // Calculate grid dimensions
+  const gridCols = 3;
+  const gridRows = 4;
 
-    // Calculate auto aspect ratio
-    const autoAspectRatio = calculateAutoAspectRatio(gridCols, gridRows);
+  // Calculate auto aspect ratio
+  const autoAspectRatio = calculateAutoAspectRatio(gridCols, gridRows);
 
-    // Calculate cell dimensions and margin
+  // Calculate cell dimensions and margin
   const cellWidth = maxImageWidth + margin;
-  const cellHeight = maxImageHeight + margin; 
+  const cellHeight = cellWidth / autoAspectRatio;
 
-    // Calculate total width and height based on the grid, cell dimensions, and margin
-    const totalWidth = gridCols * cellWidth - margin;
-    const totalHeight = gridRows * cellHeight - margin;
+  // Calculate total width and height based on the grid, cell dimensions, and margin
+  const totalWidth = gridCols * cellWidth - margin;
+  const totalHeight = gridRows * cellHeight - margin;
 
-    // Use 'import' and 'export' to handle modules
-    const collage = sharp({
-        create: {
-            width: Math.round(totalWidth),
-            height: Math.round(totalHeight),
-            channels: 3,
-            aspectRatio: autoAspectRatio,
-            background: {
-                r: 255,
-                g: 255,
-                b: 255,
-            },
-        },
-    });
+  const collage = sharp({
+      create: {
+          width: Math.round(totalWidth),
+          height: Math.round(totalHeight),
+          channels: 3,
+          aspectRatio: autoAspectRatio,
+         // png: { compressionLevel: 9 }, // Adjust compression level as needed
+          background: {
+              r: 255,
+              g: 255,
+              b: 255,
+          },
+      },
+  });
 
     const overlayPromises = [];
 
@@ -160,14 +164,20 @@ async function createCollage(imageUrls, outputCollagePath) {
         const imageBuffer = Buffer.from(response.data, 'binary');
 
         // Adjust the image size to fit the cell
-          const resizedImageBuffer = await sharp(imageBuffer)
-              .resize({
-                  width: Math.round(maxImageWidth),
-                  height: Math.round(maxImageHeight),
-                  fit: 'contain', // Keep the entire image within the specified dimensions
-                  position: sharp.strategy.entropy, // Positioning strategy
-              })
-              .toBuffer();
+    const resizedImageBuffer = await sharp(imageBuffer)
+    .resize(Math.round(maxImageWidth), Math.round(maxImageHeight)).jpeg({quality: 90}).toBuffer();
+    
+    // const resizedImageBuffer = await sharp(imageBuffer)
+    // .resize(Math.round(maxImageWidth), Math.round(maxImageHeight))
+    // .toBuffer().png({ compressionLevel: 9, adaptiveFiltering: true, force: true }).withMetadata();
+
+  /*   const resizedImageBuffer = await sharp(imageBuffer)
+    .resize({
+        width: Math.round(maxImageWidth),
+        height: Math.round(maxImageHeight),
+        fit: 'contain', // Keep the entire image within the specified dimensions
+        position: sharp.strategy.entropy, // Positioning strategy
+    }).png({ compressionLevel: 9, adaptiveFiltering: true, force: true }).withMetadata().toBuffer(); */
 
           overlayPromises.push({
               input: resizedImageBuffer,
@@ -180,6 +190,10 @@ async function createCollage(imageUrls, outputCollagePath) {
 
     // Save the collage image to a file
     await collage.toFile(outputCollagePath);
+  // Compress the collage image (PNG format)
+  //const compressedImageBuffer = await collage.toBuffer();
+  //let CollagePath = './compressed.png'
+  //await fs.writeFile(CollagePath, compressedImageBuffer);
     console.log('Collage created successfully!');
 }
 
@@ -215,7 +229,7 @@ async function uploadToGraphOrg(Path) {
         const imageUrl = "https://graph.org" + response.data[0].src;
         return resolve(imageUrl);
       } catch (uploadError) {
-        console.error("Graph.org upload failed. Trying alternative method.");
+        console.error("Graph.org upload failed. Trying alternative methods.");
 
         // Read the WebM file synchronously
         const media = fs.readFileSync(Path);
@@ -227,8 +241,22 @@ async function uploadToGraphOrg(Path) {
           console.log(caliphResponse);
           return resolve(caliphUrl);
         } catch (caliphError) {
-          console.error("Alternative upload method failed:", caliphError);
-          return reject(new Error("Both upload methods failed."));
+          console.error("Alternative upload method (Caliph) failed:", caliphError);
+
+          try {
+            const fileIOUrl = await fileIO(media);
+            return resolve(fileIOUrl);
+          } catch (fileIOError) {
+            console.error("Alternative upload method (fileIO) failed:", fileIOError);
+
+            try {
+              const restfulAPIUrl = await RESTfulAPI(media);
+              return resolve(restfulAPIUrl);
+            } catch (restfulAPIError) {
+              console.error("Alternative upload method (RESTfulAPI) failed:", restfulAPIError);
+              return reject(new Error("All upload methods failed"));
+            }
+          }
         }
       }
     } catch (err) {
@@ -237,4 +265,47 @@ async function uploadToGraphOrg(Path) {
   });
 }
 
+async function fileIO(buffer) {
+  const { ext, mime } = await fileTypeFromBuffer(buffer) || {};
+  let form = new FormData();
+  const blob = new Blob([buffer], { type: mime });
+  form.append('file', blob, 'tmp.' + ext);
 
+  let res = await fetch('https://file.io/?expires=1d', {
+    method: 'POST',
+    body: form
+  });
+
+  let json = await res.json();
+
+  if (!json.success) {
+    throw json;
+  }
+
+  return json.link;
+}
+
+async function RESTfulAPI(buffer) {
+  let form = new FormData();
+  const blob = new Blob([buffer]);
+  form.append('file', blob);
+
+  let res = await fetch('https://storage.restfulapi.my.id/upload', {
+    method: 'POST',
+    body: form
+  });
+
+  let json = await res.text();
+
+  try {
+    json = JSON.parse(json);
+
+    if (Array.isArray(json.files)) {
+      return json.files[0].url;
+    } else {
+      return json.files.map(res => res.url);
+    }
+  } catch (e) {
+    throw json;
+  }
+}
