@@ -1,5 +1,4 @@
 import express from 'express';
-
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
