@@ -161,14 +161,13 @@ async function createCollage(imageUrls, outputCollagePath) {
         const imageBuffer = Buffer.from(response.data, 'binary');
 
         // Adjust the image size to fit the cell
-          const resizedImageBuffer = await sharp(imageBuffer)
-              .resize({
-                  width: Math.round(maxImageWidth),
-                  height: Math.round(maxImageHeight),
-                  fit: 'contain', // Keep the entire image within the specified dimensions
-                  position: sharp.strategy.entropy, // Positioning strategy
-              })
-              .toBuffer();
+    const resizedImageBuffer = await sharp(imageBuffer)
+    .resize({
+        width: Math.round(maxImageWidth),
+        height: Math.round(maxImageHeight),
+        fit: 'contain', // Keep the entire image within the specified dimensions
+        position: sharp.strategy.entropy, // Positioning strategy
+    }).png({ compressionLevel: 9, adaptiveFiltering: true, force: true }).withMetadata().toBuffer();
 
           overlayPromises.push({
               input: resizedImageBuffer,
